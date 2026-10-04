@@ -31,9 +31,9 @@ export function browserTools(bm: BrowserManager, dataDir: string): ToolDefinitio
     return fail(/Timeout|not found|resolved to 0|strict mode/i.test(m) ? "element_not_found" : /closed|crash|disconnected/i.test(m) ? "browser_lost" : "browser_error", m.slice(0, 500), true);
   };
   const defs: ToolDefinition[] = [
-    { name: "browser.open", signature: "{ url: string }", description: "Open ARU's browser (if needed) and navigate the ACTIVE tab to url.", riskLevel: "low",
+    { name: "browser.open", signature: "{ url: string }", description: "Open Yuna's browser (if needed) and navigate the ACTIVE tab to url.", riskLevel: "low",
       schema: z.object({ url: z.string().min(1) }),
-      async execute({ url }) { try { return await withPage(async (p) => { await p.goto(norm(url), { waitUntil: "domcontentloaded", timeout: 30000 }); await bm.snapshot(); return ok({ url: p.url(), title: await p.title() }, { observation: { ...(await obs(p)), application: "ARU Browser" } }); }); } catch (e) { return wrap("open", e); } } },
+      async execute({ url }) { try { return await withPage(async (p) => { await p.goto(norm(url), { waitUntil: "domcontentloaded", timeout: 30000 }); await bm.snapshot(); return ok({ url: p.url(), title: await p.title() }, { observation: { ...(await obs(p)), application: "Yuna Browser" } }); }); } catch (e) { return wrap("open", e); } } },
     { name: "browser.new_tab", signature: "{ url?: string }", description: "Open a new tab (optionally at url) and make it active.", riskLevel: "low",
       schema: z.object({ url: z.string().optional() }),
       async execute({ url }) { try { const id = await bm.newTab(url ? norm(url) : undefined); return ok({ page_id: id }); } catch (e) { return wrap("new_tab", e); } } },

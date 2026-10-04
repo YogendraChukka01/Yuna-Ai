@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { send } from "../lib/bridge";
-import { useAru } from "../lib/store";
+import { useYuna } from "../lib/store";
 
 export function SettingsPanel() {
-  const { settings, memories } = useAru();
+  const { settings, memories } = useYuna();
   useEffect(() => { send({ type: "memory_list" }); }, []);
   const set = (patch: object) => send({ type: "settings_set", patch });
   const autostart = async (on: boolean) => {
@@ -17,7 +17,7 @@ export function SettingsPanel() {
       <Row label="Speak responses"><Toggle v={settings.speak} on={(b) => set({ speak: b })} /></Row>
       <Row label="Ask before medium-risk actions (write files, shell)"><Toggle v={settings.confirmMedium} on={(b) => set({ confirmMedium: b })} /></Row>
       <Row label="Memory"><Toggle v={settings.memoryEnabled} on={(b) => set({ memoryEnabled: b })} /></Row>
-      <Row label="Launch ARU at startup"><Toggle v={false} on={autostart} /></Row>
+      <Row label="Launch Yuna at startup"><Toggle v={false} on={autostart} /></Row>
       <Row label="Max task iterations"><input type="number" min={5} max={500} value={settings.maxIterations} onChange={(e) => set({ maxIterations: +e.target.value })} className="w-20 rounded bg-white/10 px-2 py-1 text-right" /></Row>
       <Row label="Context compaction threshold"><input type="number" min={10} max={200} value={settings.compactionThreshold} onChange={(e) => set({ compactionThreshold: +e.target.value })} className="w-20 rounded bg-white/10 px-2 py-1 text-right" /></Row>
       <Row label="Keep task history (days)"><input type="number" min={1} max={3650} value={settings.taskHistoryDays} onChange={(e) => set({ taskHistoryDays: +e.target.value })} className="w-20 rounded bg-white/10 px-2 py-1 text-right" /></Row>

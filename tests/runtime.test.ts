@@ -10,7 +10,7 @@ import { DEFAULT_SETTINGS, type AgentEvent, type LLM } from "../agent/runtime/ty
 const scripted = (replies: string[]): LLM => { let i = 0; return { newSession: async () => `s${i}`, prompt: async () => replies[Math.min(i++, replies.length - 1)] }; };
 const call = (tool: string, args = {}) => JSON.stringify({ type: "tool_call", tool, arguments: args, reason: tool });
 function setup(replies: string[], settings = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aru-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yuna-"));
   const store = new Store(dir); const events: AgentEvent[] = []; let ran = 0;
   const tools = new ToolRegistry().register(
     { name: "t.echo", description: "", signature: "{}", schema: z.object({}).passthrough(), riskLevel: "low", execute: async () => { ran++; return ok({ echoed: true }); } },

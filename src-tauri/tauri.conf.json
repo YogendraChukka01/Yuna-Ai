@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ARU",
+  "productName": "Yuna",
   "version": "0.1.0",
-  "identifier": "dev.aru.desktop",
+  "identifier": "dev.yuna.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "withGlobalTauri": false,
     "windows": [
       {
-        "label": "main", "title": "ARU", "width": 340, "height": 90,
+        "label": "main", "title": "Yuna", "width": 340, "height": 90,
         "decorations": false, "transparent": true, "alwaysOnTop": true, "skipTaskbar": true,
         "resizable": false, "shadow": false, "center": false, "x": 0, "y": 0, "visible": true
       }

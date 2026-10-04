@@ -27,20 +27,20 @@ fn get_agent_config(state: tauri::State<Agent>) -> AgentConfig {
 }
 
 fn spawn_agent(token: &str) -> Option<Child> {
-    let root = std::env::var("ARU_ROOT")
+    let root = std::env::var("YUNA_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."));
     let mut cmd = Command::new("node");
     cmd.current_dir(&root)
         .args(["--import", "tsx", "agent/server.ts"])
-        .env("ARU_TOKEN", token)
-        .env("ARU_PORT", PORT.to_string());
+        .env("YUNA_TOKEN", token)
+        .env("YUNA_PORT", PORT.to_string());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
-    cmd.spawn().map_err(|e| eprintln!("failed to start ARU agent: {e}")).ok()
+    cmd.spawn().map_err(|e| eprintln!("failed to start Yuna agent: {e}")).ok()
 }
 
 pub fn run() {
@@ -55,7 +55,7 @@ pub fn run() {
                             let _ = w.show();
                             let _ = w.set_focus();
                         }
-                        let _ = app.emit("aru-cmd", if chat { "chat" } else { "voice" });
+                        let _ = app.emit("yuna-cmd", if chat { "chat" } else { "voice" });
                     }
                 })
                 .build(),
@@ -63,8 +63,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![get_agent_config])
         .setup(|app| {
             let token = uuid::Uuid::new_v4().to_string();
-            // ARU_NO_SPAWN=1 lets you run `npm run dev:agent` yourself (token must match: set ARU_TOKEN).
-            let child = if std::env::var("ARU_NO_SPAWN").is_ok() { None } else { spawn_agent(&token) };
+            // YUNA_NO_SPAWN=1 lets you run `npm run dev:agent` yourself (token must match: set YUNA_TOKEN).
+            let child = if std::env::var("YUNA_NO_SPAWN").is_ok() { None } else { spawn_agent(&token) };
             app.manage(Agent { child: Mutex::new(child), token });
 
             let voice = MenuItem::with_id(app, "voice", "Start voice", true, None::<&str>)?;
@@ -75,7 +75,7 @@ pub fn run() {
             let menu = Menu::with_items(app, &[&voice, &chat, &pause, &settings, &quit])?;
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("ARU")
+                .tooltip("Yuna")
                 .menu(&menu)
                 .on_menu_event(|app, ev| match ev.id().as_ref() {
                     "quit" => app.exit(0),
@@ -84,7 +84,7 @@ pub fn run() {
                             let _ = w.show();
                             let _ = w.set_focus();
                         }
-                        let _ = app.emit("aru-cmd", id);
+                        let _ = app.emit("yuna-cmd", id);
                     }
                 })
                 .build(app)?;
@@ -94,7 +94,7 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building ARU");
+        .expect("error while building Yuna");
 
     app.run(|handle, event| {
         if let RunEvent::Exit = event {

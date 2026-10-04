@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { Island } from "./components/Island";
 import { connect, send, sendTask } from "./lib/bridge";
-import { getState, setState, useAru } from "./lib/store";
+import { getState, setState, useYuna } from "./lib/store";
 import { createRecognizer, tts, WebSpeechRecognizer } from "./voice";
 import type { SpeechRecognizer } from "./voice/stt";
 
@@ -28,7 +28,7 @@ function useWindowFit(ref: React.RefObject<HTMLDivElement>) {
 }
 
 export default function App() {
-  const s = useAru();
+  const s = useYuna();
   const wrap = useRef<HTMLDivElement>(null);
   const rec = useRef<SpeechRecognizer | null>(null);
   useWindowFit(wrap);
@@ -36,7 +36,7 @@ export default function App() {
   const stopListening = useCallback(() => { void rec.current?.stop(); setState({ listening: false, partial: "" }); }, []);
   const startListening = useCallback(async () => {
     if (getState().listening) return stopListening();
-    tts.cancel(); // user speaking interrupts ARU speaking
+    tts.cancel(); // user speaking interrupts Yuna speaking
     if (!WebSpeechRecognizer.supported()) { setState({ flash: { kind: "error", text: "Voice input unavailable in this WebView — use chat." } }); return; }
     const r = createRecognizer(); rec.current = r;
     r.onPartial((t) => setState({ partial: t }));
@@ -58,7 +58,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     let un: (() => void) | undefined;
-    if (isTauri) import("@tauri-apps/api/event").then(({ listen }) => listen<string>("aru-cmd", ({ payload }) => {
+    if (isTauri) import("@tauri-apps/api/event").then(({ listen }) => listen<string>("yuna-cmd", ({ payload }) => {
       const st = getState();
       if (payload === "voice") void startListening();
       else if (payload === "chat") setState({ chatOpen: true, tab: "chat" });

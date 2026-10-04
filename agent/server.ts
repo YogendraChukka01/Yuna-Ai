@@ -11,9 +11,9 @@ import { Store } from "./runtime/store";
 import type { AgentEvent } from "./runtime/types";
 import { createToolkit } from "./tools";
 
-const PORT = Number(process.env.ARU_PORT || 47821);
-const TOKEN = process.env.ARU_TOKEN || "dev-token"; // Tauri injects a random token; "dev-token" is only for `npm run dev` in a browser.
-const DATA_DIR = process.env.ARU_DATA_DIR || path.join(os.homedir(), ".aru");
+const PORT = Number(process.env.YUNA_PORT || 47821);
+const TOKEN = process.env.YUNA_TOKEN || "dev-token"; // Tauri injects a random token; "dev-token" is only for `npm run dev` in a browser.
+const DATA_DIR = process.env.YUNA_DATA_DIR || path.join(os.homedir(), ".yuna");
 const ORIGINS = new Set(["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420", "http://127.0.0.1:1420"]);
 
 const store = new Store(DATA_DIR);
@@ -80,7 +80,7 @@ wss.on("connection", (ws) => {
   });
 });
 
-server.listen(PORT, "127.0.0.1", () => log("INFO", `ARU agent listening on 127.0.0.1:${PORT} (data: ${DATA_DIR})`));
+server.listen(PORT, "127.0.0.1", () => log("INFO", `Yuna agent listening on 127.0.0.1:${PORT} (data: ${DATA_DIR})`));
 const shutdown = async () => { runtime.stopAll(); await browser.close(); process.exit(0); };
 process.on("SIGINT", shutdown); process.on("SIGTERM", shutdown);
 process.on("uncaughtException", (e) => log("ERROR", "uncaught:", e.message));

@@ -96,7 +96,7 @@ export class AgentRuntime {
   }
 
   private async newSession(task: TaskSession, resumed: boolean): Promise<Session> {
-    const id = await this.d.llm.newSession(`aru ${task.task_id}`);
+    const id = await this.d.llm.newSession(`yuna ${task.task_id}`);
     const S = this.d.getSettings();
     const mem = S.memoryEnabled ? await this.d.memory.search(task.goal) : [];
     task.memory_refs = mem.map((m) => m.id);
@@ -119,7 +119,8 @@ export class AgentRuntime {
     if (!this.d.browser.isOpen()) return "";
     try {
       const st = await this.d.browser.state();
-      task.active_browser = st.browser_id; task.active_tab = st.active_page;
+      task.active_browser = st.browser_id ?? undefined;
+      task.active_tab = st.active_page ?? undefined;
       task.browser = await this.d.browser.snapshot();
       this.d.emit({ type: "observation", taskId: task.task_id, data: st });
       return `\nBROWSER STATE: ${JSON.stringify(st)}`;

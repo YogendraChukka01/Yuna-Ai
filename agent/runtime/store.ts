@@ -12,7 +12,7 @@ export class Store {
   db: Database.Database;
   constructor(dataDir: string) {
     fs.mkdirSync(dataDir, { recursive: true });
-    this.db = new Database(path.join(dataDir, "aru.db"));
+    this.db = new Database(path.join(dataDir, "yuna.db"));
     this.db.pragma("journal_mode = WAL");
     this.db.exec(fs.readFileSync(path.resolve(here, "../../database/schema.sql"), "utf8"));
   }

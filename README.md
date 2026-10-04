@@ -1,9 +1,9 @@
-# ARU Desktop
+# Yuna Desktop
 
 Dynamic-Island-style autonomous desktop assistant (voice + chat). Tauri 2 · React/TS/Tailwind/Motion · OpenCode SDK · Playwright · SQLite.
 
 ## Prerequisites (Windows)
-Node 20+, Rust (MSVC toolchain), Microsoft C++ Build Tools, WebView2 runtime, Google Chrome (or run `npm run browsers` for bundled Chromium and set `ARU_BROWSER_CHANNEL=chromium`).
+Node 20+, Rust (MSVC toolchain), Microsoft C++ Build Tools, WebView2 runtime, Google Chrome (or run `npm run browsers` for bundled Chromium and set `YUNA_BROWSER_CHANNEL=chromium`).
 
 ## Setup
 ```

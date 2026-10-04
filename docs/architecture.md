@@ -4,9 +4,9 @@
 Tauri 2 shell (Rust)  ── spawns ──►  Agent process (Node/TS, agent/server.ts)
  • transparent top-center window        • WebSocket 127.0.0.1:47821 (random token + Origin allow-list)
  • tray, Ctrl+Space hotkeys, autostart  • AgentRuntime (planner/executor/verifier loop)
-        ▲  aru-cmd events                • OpenCode SDK session per task (builtin tools disabled)
+        ▲  yuna-cmd events               • OpenCode SDK session per task (builtin tools disabled)
         │                                • ToolRegistry → Browser(Playwright) / Computer / App / File / Shell
-React UI (Dynamic Island) ◄── events ──  • Policy engine • LoopGuard • Checkpoints • Memory • SQLite (~/.aru/aru.db)
+React UI (Dynamic Island) ◄── events ──  • Policy engine • LoopGuard • Checkpoints • Memory • SQLite (~/.yuna/yuna.db)
 ```
 Voice and chat both produce the same `task` message → same `AgentRuntime.submit()`.
 

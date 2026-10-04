@@ -1,2 +1,2 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-fn main() { aru_lib::run() }
+fn main() { yuna_lib::run() }

@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { send } from "../lib/bridge";
-import { modeOf, setState, useAru } from "../lib/store";
+import { modeOf, setState, useYuna } from "../lib/store";
 import { ChatPanel } from "./ChatPanel";
 import { Waveform } from "./Waveform";
 
@@ -8,7 +8,7 @@ const spring = { type: "spring", stiffness: 380, damping: 34, mass: 0.8 } as con
 const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.14 } };
 
 export function Island({ onMic }: { onMic: () => void }) {
-  const s = useAru();
+  const s = useYuna();
   const mode = modeOf(s);
   const t = s.task;
   const icon = (st: string) => (st === "done" ? <span className="text-emerald-400">✓</span> : st === "failed" ? <span className="text-red-400">✗</span> : <span className="breathe text-amber-300">◉</span>);
@@ -23,7 +23,7 @@ export function Island({ onMic }: { onMic: () => void }) {
           {t && <button className="ml-2 text-[11px] text-zinc-400 hover:text-white" onClick={() => send({ type: "stop", taskId: t.id })}>Stop</button>}</motion.div>}
         {mode === "executing" && t && (
           <motion.div key="e" {...fade} className="w-[360px] px-4 py-3">
-            <div className="mb-2 flex items-center gap-2 text-xs"><span className={`h-2 w-2 rounded-full bg-white ${t.paused ? "" : "breathe"}`} /><span className="font-medium">ARU</span>{t.paused && <span className="text-amber-300">paused</span>}</div>
+            <div className="mb-2 flex items-center gap-2 text-xs"><span className={`h-2 w-2 rounded-full bg-white ${t.paused ? "" : "breathe"}`} /><span className="font-medium">Yuna</span>{t.paused && <span className="text-amber-300">paused</span>}</div>
             <div className="space-y-1 text-[13px]">
               {t.steps.slice(-6).map((st) => <div key={st.id} className="flex items-center justify-between gap-3"><span className="truncate text-zinc-100">{st.label}</span>{icon(st.state)}</div>)}
               {t.pending.slice(0, 2).map((p, i) => <div key={i} className="flex items-center justify-between text-zinc-500"><span className="truncate">{p}</span><span>·</span></div>)}
@@ -35,7 +35,7 @@ export function Island({ onMic }: { onMic: () => void }) {
           </motion.div>)}
         {mode === "confirmation" && s.confirmation && (
           <motion.div key="c" {...fade} className="w-[380px] px-4 py-3">
-            <div className="mb-1 text-xs font-medium">ARU needs your confirmation</div>
+            <div className="mb-1 text-xs font-medium">Yuna needs your confirmation</div>
             <div className="mb-2 text-[11px] text-amber-300/90">{s.confirmation.reason}</div>
             <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-white/5 p-2 text-[11px] text-zinc-200" style={{ userSelect: "text" }}>{s.confirmation.tool}{"\n"}{JSON.stringify(s.confirmation.args, null, 2)}</pre>
             <div className="mt-3 flex justify-between text-xs">

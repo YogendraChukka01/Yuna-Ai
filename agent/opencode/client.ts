@@ -1,6 +1,6 @@
 import type { LLM } from "../runtime/types";
 
-// OpenCode ships its own built-in tools (bash/edit/write/...). ARU must be the ONLY executor so that the
+// OpenCode ships its own built-in tools (bash/edit/write/...). Yuna must be the ONLY executor so that the
 // policy engine can gate every action; we therefore disable them on every prompt.
 const DISABLE_BUILTIN_TOOLS: Record<string, boolean> = Object.fromEntries(
   ["bash", "edit", "write", "read", "grep", "glob", "list", "patch", "webfetch", "todowrite", "todoread", "task"].map((k) => [k, false]),

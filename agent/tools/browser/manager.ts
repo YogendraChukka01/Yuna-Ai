@@ -4,7 +4,7 @@ import type { BrowserContext, Page } from "playwright";
 import type { BrowserSnapshot } from "../../runtime/types";
 
 /**
- * Owns ONE dedicated, persistent ARU browser profile (never the user's normal Chrome).
+ * Owns ONE dedicated, persistent Yuna browser profile (never the user's normal Chrome).
  * Tracks pages by stable ids; relaunches + restores tabs if the browser dies mid-task.
  */
 export class BrowserManager {
@@ -14,7 +14,7 @@ export class BrowserManager {
   private n = 0;
   private lastSnap: BrowserSnapshot = { activeIndex: 0, urls: [] };
   private closing = false;
-  constructor(private profileDir: string, private channel = process.env.ARU_BROWSER_CHANNEL || "chrome", private headless = false) {}
+  constructor(private profileDir: string, private channel = process.env.YUNA_BROWSER_CHANNEL || "chrome", private headless = false) {}
 
   isOpen() { return !!this.ctx; }
 
