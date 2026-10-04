@@ -81,7 +81,12 @@ wss.on("connection", (ws) => {
 });
 
 server.listen(PORT, "127.0.0.1", () => log("INFO", `Yuna agent listening on 127.0.0.1:${PORT} (data: ${DATA_DIR})`));
-const shutdown = async () => { runtime.stopAll(); await browser.close(); process.exit(0); };
+const shutdown = async () => {
+  runtime.stopAll();
+  await browser.close();
+  store.close();
+  process.exit(0);
+};
 process.on("SIGINT", shutdown); process.on("SIGTERM", shutdown);
 process.on("uncaughtException", (e) => log("ERROR", "uncaught:", e.message));
 process.on("unhandledRejection", (e) => log("ERROR", "unhandled:", (e as Error)?.message ?? e));

@@ -21,6 +21,16 @@ function setup(replies: string[], settings = {}) {
   return { rt, events, done, store, count: () => ran };
 }
 
+describe("store shutdown", () => {
+  it("closes the sqlite database cleanly on shutdown", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yuna-close-"));
+    const store = new Store(dir);
+    expect(store.db.open).toBe(true);
+    expect(() => store.close()).not.toThrow();
+    expect(store.db.open).toBe(false);
+  });
+});
+
 describe("continuous execution (E2E #1 analogue)", () => {
   it("keeps ONE task id across many tool calls, verifies, then completes", async () => {
     const { rt, events, done, count } = setup([call("t.echo"), call("t.echo"), call("t.echo"), JSON.stringify({ type: "completed", message: "Done", evidence: "3 echoes" }), '{"verified":true}']);

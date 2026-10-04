@@ -15,6 +15,16 @@ export class Store {
     this.db = new Database(path.join(dataDir, "yuna.db"));
     this.db.pragma("journal_mode = WAL");
     this.db.exec(fs.readFileSync(path.resolve(here, "../../database/schema.sql"), "utf8"));
+    const close = () => this.close();
+    process.once("exit", close);
+    process.once("SIGINT", close);
+    process.once("SIGTERM", close);
+  }
+
+  close() {
+    if (this.db && this.db.open) {
+      try { this.db.close(); } catch { /* ignore shutdown cleanup errors */ }
+    }
   }
 
   // conversations / messages
