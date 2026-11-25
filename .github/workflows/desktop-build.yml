@@ -51,6 +51,33 @@ jobs:
           RUSTUP_TOOLCHAIN: stable
       - name: Check the built UI for credential material
         run: npm run check:bundle
+      - name: Launch a copy installed from the macOS disk image
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          install_dir=$(mktemp -d)
+          mount_dir="$install_dir/mount"
+          mkdir "$mount_dir"
+          images=(src-tauri/target/release/bundle/dmg/*.dmg)
+          hdiutil attach "${images[0]}" -readonly -nobrowse -mountpoint "$mount_dir"
+          trap 'hdiutil detach "$mount_dir"' EXIT
+          ditto "$mount_dir/Yuna.app" "$install_dir/Yuna.app"
+          binary=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$install_dir/Yuna.app/Contents/Info.plist")
+          node scripts/check-installed-agent.mjs "$install_dir/Yuna.app/Contents/MacOS/$binary"
+      - name: Install and launch the Windows NSIS package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem src-tauri/target/release/bundle/nsis -Filter '*.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'The NSIS installer was not produced.' }
+          $destination = Join-Path $env:RUNNER_TEMP 'Yuna-install-smoke'
+          $install = Start-Process -FilePath $installer.FullName -ArgumentList '/S', "/D=$destination" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Installer exited with status $($install.ExitCode)." }
+          $binary = Get-ChildItem $destination -File -Filter '*.exe' |
+            Where-Object { $_.BaseName -in @('Yuna', 'yuna-desktop') } |
+            Select-Object -First 1
+          if (-not $binary) { throw 'No installed Yuna executable found.' }
+          node scripts/check-installed-agent.mjs $binary.FullName
       - name: Upload installer candidates
         uses: actions/upload-artifact@v4
         with:
