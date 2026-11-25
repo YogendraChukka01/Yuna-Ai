@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -20,8 +20,10 @@ async function agentResponds() {
 }
 
 if (await agentResponds()) throw new Error("Stop the existing Yuna agent before testing an installed copy.");
+const binary = await realpath(executable);
+const commandArgs = await Promise.all(args.map(file => realpath(file)));
 const data = await mkdtemp(path.join(tmpdir(), "yuna-install-smoke-"));
-const child = spawn(path.resolve(executable), {
+const child = spawn(binary, commandArgs, {
   cwd: data,
   env: { ...process.env, YUNA_DATA_DIR: data },
   detached: process.platform !== "win32",
