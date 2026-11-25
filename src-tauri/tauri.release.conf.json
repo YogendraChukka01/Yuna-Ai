@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "externalBin": ["binaries/yuna-node"],
+    "resources": {
+      "sidecar/": "sidecar/"
+    }
+  }
+}

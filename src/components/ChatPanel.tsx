@@ -5,10 +5,11 @@ import { SettingsPanel } from "./Settings";
 
 export function ChatPanel({ onMic }: { onMic: () => void }) {
   const s = useYuna();
+  const petTask = s.pet.enabled ? s.task : undefined;
   const [text, setText] = useState("");
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [s.messages.length, s.task?.steps.length]);
-  const submit = () => { const t = text.trim(); if (!t) return; setText(""); sendTask(t, "chat"); };
+  const submit = () => { const t = text.trim(); if (!t || petTask) return; setText(""); sendTask(t, "chat"); };
   const Tab = ({ id, label }: { id: "chat" | "history" | "settings"; label: string }) => (
     <button onClick={() => { setState({ tab: id }); if (id === "history") send({ type: "get_history" }); }} className={`rounded-full px-3 py-1 text-[12px] ${s.tab === id ? "bg-white/15 text-white" : "text-zinc-400 hover:text-white"}`}>{label}</button>
   );
@@ -37,10 +38,14 @@ export function ChatPanel({ onMic }: { onMic: () => void }) {
           {s.task && (<div className="space-y-0.5 text-zinc-300">{s.task.steps.map((st) => <div key={st.id}>{st.state === "done" ? "✓" : st.state === "failed" ? "✗" : "◉"} {st.label}</div>)}{s.task.thinking && <div className="text-zinc-500">Thinking…</div>}</div>)}
           <div ref={end} />
         </div>
+        {petTask && <div className="flex justify-end gap-3 px-3 py-1 text-xs text-zinc-200">
+          <button onClick={() => send({ type: "pause", taskId: petTask.id, paused: !petTask.paused })}>{petTask.paused ? "Resume task" : "Pause task"}</button>
+          <button onClick={() => send({ type: "stop", taskId: petTask.id })}>Stop task</button>
+        </div>}
         <div className="flex items-center gap-2 border-t border-white/10 px-3 py-2.5">
           <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="Message Yuna…" className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-zinc-500" autoFocus />
           <button onClick={onMic} title="Push to talk" className="text-lg">🎙</button>
-          <button onClick={submit} className="rounded-full bg-white px-2.5 py-1 text-sm text-black">↑</button>
+          <button onClick={submit} disabled={!!petTask} aria-label="Send message" className="disabled:opacity-50 rounded-full bg-white px-2.5 py-1 text-sm text-black">↑</button>
         </div></>)}
     </div>
   );

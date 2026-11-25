@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { send } from "../lib/bridge";
 import { useYuna } from "../lib/store";
+import { PetSettings } from "../pet/PetSettings";
 
 export function SettingsPanel() {
   const { settings, memories } = useYuna();
@@ -14,6 +15,7 @@ export function SettingsPanel() {
   const Toggle = ({ v, on }: { v: boolean; on: (b: boolean) => void }) => <input type="checkbox" checked={v} onChange={(e) => on(e.target.checked)} className="h-4 w-4 accent-white" />;
   return (
     <div className="space-y-1 overflow-y-auto px-4 py-3" style={{ maxHeight: 300 }}>
+      <PetSettings />
       <Row label="Speak responses"><Toggle v={settings.speak} on={(b) => set({ speak: b })} /></Row>
       <Row label="Ask before medium-risk actions (write files, shell)"><Toggle v={settings.confirmMedium} on={(b) => set({ confirmMedium: b })} /></Row>
       <Row label="Memory"><Toggle v={settings.memoryEnabled} on={(b) => set({ memoryEnabled: b })} /></Row>

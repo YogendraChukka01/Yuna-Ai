@@ -8,7 +8,7 @@ import { Waveform } from "./Waveform";
 
 function startWindowDrag(e: React.PointerEvent<HTMLDivElement>) {
   const target = e.target as HTMLElement | null;
-  if (e.button !== 0 || target?.closest("button")) return;
+  if (e.button !== 0 || target?.closest("button, input, select, textarea, label, pre")) return;
   e.preventDefault();
   if ("__TAURI_INTERNALS__" in window) {
     void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {

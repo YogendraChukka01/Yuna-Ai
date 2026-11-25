@@ -1,0 +1,62 @@
+.pixel-pet { display: block; image-rendering: pixelated; }
+.pet-settings { margin: 0 0 12px; color: inherit; }
+.pet-settings h2 { margin-bottom: 7px; font-size: 13px; font-weight: 650; }
+.pet-settings-card {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid #a88eb85c;
+  border-radius: 12px;
+  background: #9d78b519;
+}
+.pet-preview {
+  display: grid;
+  place-items: center;
+  min-height: 112px;
+  background-color: #a68ac334;
+  background-image: radial-gradient(#a48bb485 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+.pet-options { display: grid; align-content: center; gap: 6px; padding: 9px 12px; }
+.pet-options label { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; }
+.pet-enable { font-weight: 650; }
+.pet-options input[type="checkbox"] { accent-color: #9473ac; }
+.pet-options input[type="text"], .pet-options select {
+  width: min(136px, 56%);
+  padding: 3px 6px;
+  border: 1px solid #a88eb867;
+  border-radius: 5px;
+  color: inherit;
+  background: #a88eb829;
+}
+.pet-options select option { color: #302342; background: #f9f4ff; }
+.pet-settings > p { margin-top: 6px; font-size: 11px; opacity: .85; }
+.floating-pet {
+  position: relative;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+.floating-pet[data-dragging="true"] { cursor: grabbing; }
+.floating-pet:focus-visible { outline: 2px solid #c3a6ef; outline-offset: 1px; border-radius: 5px; }
+.pet-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #302342;
+  border-radius: 50%;
+  background: #f3eafd;
+  color: #302342;
+  font: 700 11px/1 system-ui, sans-serif;
+}
+.pet-badge[data-mood="ready"] { background: #c2f2d6; color: #185442; }
+.pet-badge[data-mood="needs-input"] { background: #ffe3ac; color: #673900; }
+.pet-badge[data-mood="blocked"] { background: #ffc3d2; color: #701c37; }
+@media (max-width: 400px) {
+  .pet-settings-card { grid-template-columns: 100px minmax(0, 1fr); }
+  .pet-options { padding-inline: 7px; }
+}

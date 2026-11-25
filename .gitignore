@@ -4,3 +4,6 @@ dist
 src-tauri/target
 src-tauri/gen
 *.db
+src-tauri/sidecar/
+src-tauri/binaries/
+src-tauri/icons/

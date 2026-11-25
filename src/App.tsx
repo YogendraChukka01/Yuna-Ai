@@ -1,37 +1,25 @@
 import { useCallback, useEffect, useRef } from "react";
 import { Island } from "./components/Island";
-import { connect, send, sendTask } from "./lib/bridge";
-import { getState, setState, useYuna } from "./lib/store";
+import { Workspace } from "./components/Workspace";
+import { connect, openQuickChat, send, sendTask } from "./lib/bridge";
+import { getState, setState, updatePetPreferences, useYuna } from "./lib/store";
+import { FloatingPet, type PetPress } from "./pet/FloatingPet";
+import { useDesktopWindow } from "./pet/useDesktopWindow";
 import { createRecognizer, tts, WebSpeechRecognizer } from "./voice";
 import type { SpeechRecognizer } from "./voice/stt";
 
 const isTauri = "__TAURI_INTERNALS__" in window;
 
-/** Resize the transparent native window to hug the island and keep it top-centered. */
-function useWindowFit(ref: React.RefObject<HTMLDivElement>) {
-  useEffect(() => {
-    if (!isTauri || !ref.current) return;
-    let raf = 0;
-    const fit = async () => {
-      const { getCurrentWindow, LogicalSize, LogicalPosition, currentMonitor } = await import("@tauri-apps/api/window");
-      const r = ref.current!.getBoundingClientRect();
-      const w = Math.ceil(r.width) + 32, h = Math.ceil(r.height) + 24;
-      const win = getCurrentWindow(); const m = await currentMonitor(); if (!m) return;
-      const sf = m.scaleFactor;
-      await win.setSize(new LogicalSize(w, h));
-      await win.setPosition(new LogicalPosition(m.position.x / sf + (m.size.width / sf - w) / 2, m.position.y / sf + 6));
-    };
-    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(fit); });
-    ro.observe(ref.current); fit();
-    return () => ro.disconnect();
-  }, [ref]);
-}
-
 export default function App() {
   const s = useYuna();
   const wrap = useRef<HTMLDivElement>(null);
   const rec = useRef<SpeechRecognizer | null>(null);
-  useWindowFit(wrap);
+  const petSurface = useRef<HTMLButtonElement>(null);
+  const petPress = useRef<PetPress | null>(null);
+  const recovery = s.recoverable[0];
+  const showRecovery = !!recovery && !s.task && !s.confirmation;
+  const compactPet = isTauri && s.pet.enabled && !s.chatOpen && !showRecovery;
+  useDesktopWindow({ native: isTauri, enabled: s.pet.enabled, compact: compactPet, wrap, surface: petSurface, press: petPress });
 
   const stopListening = useCallback(() => { void rec.current?.stop(); setState({ listening: false, partial: "" }); }, []);
   const startListening = useCallback(async () => {
@@ -53,34 +41,48 @@ export default function App() {
   useEffect(() => { void connect(); }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.code === "Space") { e.preventDefault(); e.shiftKey ? setState({ chatOpen: true, tab: "chat" }) : startListening(); }
-      if (e.key === "Escape") { const st = getState(); if (st.chatOpen) setState({ chatOpen: false }); }
+      if (e.ctrlKey && e.code === "Space") { e.preventDefault(); e.shiftKey ? openQuickChat() : startListening(); }
+      if (isTauri && e.key === "Escape") {
+        const st = getState();
+        if (st.chatOpen) setState({ chatOpen: false });
+        else if (st.listening) stopListening();
+      }
     };
     window.addEventListener("keydown", onKey);
     let un: (() => void) | undefined;
+    let disposed = false;
     if (isTauri) import("@tauri-apps/api/event").then(({ listen }) => listen<string>("yuna-cmd", ({ payload }) => {
       const st = getState();
       if (payload === "voice") void startListening();
-      else if (payload === "chat") setState({ chatOpen: true, tab: "chat" });
+      else if (payload === "chat") openQuickChat();
+      else if (payload === "toggle-pet") updatePetPreferences({ enabled: !st.pet.enabled });
       else if (payload === "settings") setState({ chatOpen: true, tab: "settings" });
       else if (payload === "pause" && st.task) send({ type: "pause", taskId: st.task.id, paused: !st.task.paused });
-    })).then((u) => (un = u));
-    return () => { window.removeEventListener("keydown", onKey); un?.(); };
-  }, [startListening]);
+    })).then((dispose) => {
+      if (disposed) dispose();
+      else un = dispose;
+    });
+    return () => {
+      disposed = true;
+      window.removeEventListener("keydown", onKey);
+      un?.();
+    };
+  }, [startListening, stopListening]);
 
-  const rt = s.recoverable[0];
+  if (!isTauri) return <Workspace onMic={startListening} />;
+
   return (
-    <div className="flex min-h-screen flex-col items-center pt-1.5">
-      <div ref={wrap} className="flex flex-col items-center gap-2 p-2">
-        <Island onMic={startListening} />
-        {rt && !s.task && !s.confirmation && (
+    <div className={`flex min-h-screen flex-col items-center ${compactPet ? "" : "pt-1.5"}`}>
+      <div ref={wrap} className={`flex flex-col items-center gap-2 ${compactPet ? "p-1" : "p-2"}`}>
+        {compactPet ? <FloatingPet surface={petSurface} press={petPress} /> : <Island onMic={startListening} />}
+        {showRecovery && (
           <div className="w-[320px] rounded-2xl border border-white/10 bg-black/90 px-4 py-3 text-white backdrop-blur-xl">
             <div className="text-xs font-medium">Interrupted task found</div>
-            <div className="mt-1 truncate text-[13px] text-zinc-200">{rt.goal}</div>
-            <div className="text-[11px] text-zinc-500">{rt.progress}</div>
+            <div className="mt-1 truncate text-[13px] text-zinc-200">{recovery.goal}</div>
+            <div className="text-[11px] text-zinc-500">{recovery.progress}</div>
             <div className="mt-2 flex justify-between text-xs">
-              <button className="rounded-full bg-white/10 px-3 py-1" onClick={() => send({ type: "discard_task", taskId: rt.id })}>Discard</button>
-              <button className="rounded-full bg-white px-3 py-1 text-black" onClick={() => send({ type: "resume_task", taskId: rt.id })}>Resume</button>
+              <button className="rounded-full bg-white/10 px-3 py-1" onClick={() => send({ type: "discard_task", taskId: recovery.id })}>Discard</button>
+              <button className="rounded-full bg-white px-3 py-1 text-black" onClick={() => send({ type: "resume_task", taskId: recovery.id })}>Resume</button>
             </div>
           </div>)}
       </div>
