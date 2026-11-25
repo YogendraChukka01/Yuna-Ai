@@ -43,13 +43,16 @@ fn agent_command(app: &tauri::AppHandle) -> Result<Command, Box<dyn std::error::
     } else {
         "yuna-node"
     });
-    let entry = app.path().resource_dir()?.join("sidecar").join("start.mjs");
+    // Tauri resolves Windows resources to an extended-length path. Node's
+    // entry-point loader needs a regular drive path when one is available.
+    let resources = app.path().resource_dir()?;
+    let entry = dunce::simplified(&resources).join("sidecar").join("start.mjs");
     let data = match std::env::var_os("YUNA_DATA_DIR").filter(|value| !value.is_empty()) {
         Some(path) => PathBuf::from(path),
         None => app.path().home_dir()?.join(".yuna"),
     };
     std::fs::create_dir_all(&data)?;
-    let data = data.canonicalize()?;
+    let data = dunce::canonicalize(data)?;
     let mut command = Command::new(executable);
     command.current_dir(&data)
         .arg(entry)
