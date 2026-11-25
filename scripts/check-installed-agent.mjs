@@ -5,7 +5,7 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 
-const executable = process.argv[2];
+const [executable, ...args] = process.argv.slice(2);
 if (!executable) throw new Error("Pass the absolute path to the installed Yuna executable.");
 const endpoint = `http://127.0.0.1:${process.env.YUNA_PORT ?? 47821}/`;
 
@@ -26,11 +26,18 @@ const child = spawn(path.resolve(executable), {
   env: { ...process.env, YUNA_DATA_DIR: data },
   detached: process.platform !== "win32",
   windowsHide: true,
-  stdio: "inherit",
+  stdio: ["ignore", "pipe", "pipe"],
 });
 const closed = new Promise(resolve => child.once("close", resolve));
 let startupError;
+let output = "";
+for (const stream of [child.stdout, child.stderr]) {
+  stream.on("data", chunk => { output = (output + chunk.toString()).slice(-3000); });
+}
 child.once("error", error => { startupError = error; });
+child.on("exit", (code, signal) => {
+  if (signal || code !== 0) startupError ??= new Error(`App exited with ${signal ?? code}`);
+});
 
 try {
   const deadline = Date.now() + 45_000;
@@ -47,6 +54,12 @@ try {
     await delay(400);
   }
   if (!ready) throw new Error("Installed Yuna did not start its local agent within 45 seconds.");
+} catch (error) {
+  const failure = `${error.message}${output ? `\n${output}` : ""}`;
+  if (process.env.GITHUB_ACTIONS === "true") {
+    console.error(`::error::${failure.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A")}`);
+  }
+  throw error;
 } finally {
   if (child.pid) {
     if (process.platform === "win32") {

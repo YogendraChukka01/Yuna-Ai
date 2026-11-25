@@ -63,7 +63,13 @@ jobs:
           trap 'hdiutil detach "$mount_dir"' EXIT
           ditto "$mount_dir/Yuna.app" "$install_dir/Yuna.app"
           binary=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$install_dir/Yuna.app/Contents/Info.plist")
-          node scripts/check-installed-agent.mjs "$install_dir/Yuna.app/Contents/MacOS/$binary"
+          app_contents="$install_dir/Yuna.app/Contents"
+          if ! node scripts/check-installed-agent.mjs "$app_contents/MacOS/$binary"; then
+            # Check the installed runtime separately to distinguish an agent bootstrap error
+            # from a GUI startup failure on the hosted runner.
+            node scripts/check-installed-agent.mjs "$app_contents/MacOS/yuna-node" "$app_contents/Resources/sidecar/start.mjs"
+            exit 1
+          fi
       - name: Install and launch the Windows NSIS package
         if: runner.os == 'Windows'
         shell: pwsh
