@@ -24,7 +24,7 @@ export class Store {
 
   close() {
     if (this.db && this.db.open) {
-      try { this.db.close(); } catch { /* ignore shutdown cleanup errors */ }
+      try { this.db.close(); } catch (e) { console.warn("[yuna] SQLite shutdown skipped:", (e as Error).message); }
     }
   }
 

@@ -15,6 +15,6 @@ export class WebSpeechRecognizer implements SpeechRecognizer {
     this.r.onend = () => this.e(); this.r.onerror = () => this.e();
     this.r.start();
   }
-  async stop() { try { this.r?.stop(); } catch { /* noop */ } }
+  async stop() { try { this.r?.stop(); } catch { /* The recognizer may already have ended and stop() is intentionally best-effort. */ } }
   onPartial(cb: (t: string) => void) { this.p = cb; } onFinal(cb: (t: string) => void) { this.f = cb; } onEnd(cb: () => void) { this.e = cb; }
 }

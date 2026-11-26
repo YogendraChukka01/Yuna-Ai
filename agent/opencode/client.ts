@@ -53,5 +53,5 @@ export class OpenCodeLLM implements LLM {
     return out;
   }
 
-  close() { try { this.server?.close(); } catch { /* ignore */ } }
+  close() { try { this.server?.close(); } catch (e) { console.warn("[yuna] OpenCode server shutdown skipped:", (e as Error).message); } }
 }

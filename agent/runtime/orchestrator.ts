@@ -136,7 +136,7 @@ export class AgentRuntime {
     let session: Session;
     try { session = await raceAbort(this.newSession(task, resumed), run.abort.signal); }
     catch (e) { return this.end(task, (e as Error).message === "aborted" ? "cancelled" : "unrecoverable_error", `Could not start session: ${(e as Error).message}`); }
-    if (resumed && task.browser) { try { await this.d.browser.restore(task.browser); } catch { /* model will re-navigate */ } }
+    if (resumed && task.browser) { try { await this.d.browser.restore(task.browser); } catch (e) { console.warn("[yuna] Browser restore skipped; model will re-navigate:", (e as Error).message); } }
 
     let observation = resumed ? "Task resumed after interruption. Check the environment before continuing." : "Task started. No actions taken yet. Include a short \"plan\" in your first tool_call.";
     let invalid = 0, modelErrors = 0, verifyFails = 0, verifyingMessage = "";

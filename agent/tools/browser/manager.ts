@@ -2,12 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import type { BrowserContext, Page } from "playwright";
 import type { BrowserSnapshot } from "../../runtime/types";
+import { BrowserStateMachine } from "./state";
 
 /**
  * Owns ONE dedicated, persistent Yuna browser profile (never the user's normal Chrome).
  * Tracks pages by stable ids; relaunches + restores tabs if the browser dies mid-task.
  */
 export class BrowserManager {
+  private lifecycle = new BrowserStateMachine();
   private ctx?: BrowserContext;
   private pages = new Map<string, Page>();
   private active?: string;
@@ -31,22 +33,31 @@ export class BrowserManager {
 
   async ensure(): Promise<BrowserContext> {
     if (this.ctx) return this.ctx;
-    const { chromium } = await import("playwright");
-    fs.mkdirSync(this.profileDir, { recursive: true });
-    const opts = { headless: this.headless, viewport: null as null, args: ["--start-maximized"] };
-    try { this.ctx = await chromium.launchPersistentContext(this.profileDir, { ...opts, ...(this.channel !== "chromium" && { channel: this.channel }) }); }
-    catch { this.ctx = await chromium.launchPersistentContext(this.profileDir, opts); } // fall back to bundled Chromium
-    this.pages.clear();
-    this.ctx.on("page", (p) => this.track(p));
-    this.ctx.on("close", () => { if (!this.closing) { this.ctx = undefined; this.pages.clear(); this.active = undefined; } });
-    const existing = this.ctx.pages();
-    if (existing.length) existing.forEach((p) => this.track(p)); else this.track(await this.ctx.newPage());
-    // crash recovery: restore tabs from the last known snapshot
-    if (this.lastSnap.urls.length) await this.restore(this.lastSnap);
-    return this.ctx;
+    return this.lifecycle.launch(async () => {
+      const { chromium } = await import("playwright");
+      fs.mkdirSync(this.profileDir, { recursive: true });
+      const opts = { headless: this.headless, viewport: null as null, args: ["--start-maximized"] };
+      try { this.ctx = await chromium.launchPersistentContext(this.profileDir, { ...opts, ...(this.channel !== "chromium" && { channel: this.channel }) }); }
+      catch { this.ctx = await chromium.launchPersistentContext(this.profileDir, opts); }
+      this.pages.clear();
+      this.ctx.on("page", (p) => this.track(p));
+      this.ctx.on("close", () => {
+        if (!this.closing) {
+          this.lifecycle.markCrashed();
+          this.ctx = undefined;
+          this.pages.clear();
+          this.active = undefined;
+        }
+      });
+      const existing = this.ctx.pages();
+      if (existing.length) existing.forEach((p) => this.track(p)); else this.track(await this.ctx.newPage());
+      if (this.lastSnap.urls.length) await this.restore(this.lastSnap);
+      return this.ctx;
+    });
   }
 
   async restore(snap: BrowserSnapshot) {
+    this.lifecycle.markRestoring();
     const ctx = this.ctx ?? (await this.ensure());
     if (!snap.urls.length) return;
     this.lastSnap = { urls: [], activeIndex: 0 }; // prevent recursion from ensure()
@@ -58,6 +69,7 @@ export class BrowserManager {
     }
     this.active = ids[Math.min(snap.activeIndex, ids.length - 1)];
     await this.pages.get(this.active)?.bringToFront().catch(() => {});
+    this.lifecycle.markReady();
   }
 
   async activePage(): Promise<Page> {
