@@ -7,7 +7,7 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "npm run dev:ui",
-    "beforeBuildCommand": "npm run build:ui"
+    "beforeBuildCommand": "npm run build:ui && npm run build:agent"
   },
   "app": {
     "withGlobalTauri": false,
@@ -25,6 +25,8 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"]
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "externalBin": ["binaries/yuna-agent"],
+    "resources": ["../dist-agent/server.js", "../node_modules"]
   }
 }

@@ -1,14 +1,30 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { send } from "../lib/bridge";
 import { useYuna } from "../lib/store";
 
 export function SettingsPanel() {
   const { settings, memories } = useYuna();
-  useEffect(() => { send({ type: "memory_list" }); }, []);
+  const [autostartEnabled, setAutostartEnabled] = useState(false);
+  const [autostartError, setAutostartError] = useState("");
+  const [agentStatus, setAgentStatus] = useState("unknown");
+  useEffect(() => {
+    send({ type: "memory_list" });
+    if ("__TAURI_INTERNALS__" in window) {
+      void import("@tauri-apps/api/core").then(({ invoke }) => invoke<string>("get_agent_status").then(setAgentStatus).catch(() => setAgentStatus("unknown")));
+      void import("@tauri-apps/plugin-autostart").then(async (m) => {
+        try { setAutostartEnabled(await m.isEnabled()); } catch (e) { setAutostartError((e as Error).message); }
+      }).catch((e) => setAutostartError((e as Error).message));
+    }
+  }, []);
   const set = (patch: object) => send({ type: "settings_set", patch });
   const autostart = async (on: boolean) => {
     if (!("__TAURI_INTERNALS__" in window)) return;
-    const m = await import("@tauri-apps/plugin-autostart"); on ? await m.enable() : await m.disable();
+    try {
+      const m = await import("@tauri-apps/plugin-autostart");
+      on ? await m.enable() : await m.disable();
+      setAutostartEnabled(await m.isEnabled());
+      setAutostartError("");
+    } catch (e) { setAutostartError((e as Error).message); }
   };
   const Row = ({ label, children }: any) => <label className="flex items-center justify-between gap-3 py-1.5 text-[13px] text-zinc-200">{label}{children}</label>;
   const Toggle = ({ v, on }: { v: boolean; on: (b: boolean) => void }) => <input type="checkbox" checked={v} onChange={(e) => on(e.target.checked)} className="h-4 w-4 accent-white" />;
@@ -17,7 +33,9 @@ export function SettingsPanel() {
       <Row label="Speak responses"><Toggle v={settings.speak} on={(b) => set({ speak: b })} /></Row>
       <Row label="Ask before medium-risk actions (write files, shell)"><Toggle v={settings.confirmMedium} on={(b) => set({ confirmMedium: b })} /></Row>
       <Row label="Memory"><Toggle v={settings.memoryEnabled} on={(b) => set({ memoryEnabled: b })} /></Row>
-      <Row label="Launch Yuna at startup"><Toggle v={false} on={autostart} /></Row>
+      <Row label="Launch Yuna at startup"><Toggle v={autostartEnabled} on={autostart} /></Row>
+      {autostartError && <div className="text-[11px] text-red-300">Startup setting error: {autostartError}</div>}
+      <div className="pt-1 text-[11px] text-zinc-500">Agent status: {agentStatus}</div>
       <Row label="Max task iterations"><input type="number" min={5} max={500} value={settings.maxIterations} onChange={(e) => set({ maxIterations: +e.target.value })} className="w-20 rounded bg-white/10 px-2 py-1 text-right" /></Row>
       <Row label="Context compaction threshold"><input type="number" min={10} max={200} value={settings.compactionThreshold} onChange={(e) => set({ compactionThreshold: +e.target.value })} className="w-20 rounded bg-white/10 px-2 py-1 text-right" /></Row>
       <Row label="Keep task history (days)"><input type="number" min={1} max={3650} value={settings.taskHistoryDays} onChange={(e) => set({ taskHistoryDays: +e.target.value })} className="w-20 rounded bg-white/10 px-2 py-1 text-right" /></Row>
