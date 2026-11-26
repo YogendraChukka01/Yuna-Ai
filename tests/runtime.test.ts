@@ -29,6 +29,41 @@ describe("store shutdown", () => {
     expect(() => store.close()).not.toThrow();
     expect(store.db.open).toBe(false);
   });
+
+  describe("database integrity", () => {
+    it("cascades conversation deletion to tasks and task records", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yuna-cascade-"));
+      const store = new Store(dir);
+      store.ensureConversation("c-cascade", "Cascade");
+      store.saveTask({ task_id:"t-cascade", conversation_id:"c-cascade", goal:"test", status:"completed", created_at:new Date().toISOString(), updated_at:new Date().toISOString(), plan:[], completed_steps:[], pending_steps:[], failed_steps:[], artifacts:[], memory_refs:[], checkpoints:0, iteration:0, toolCalls:0, retries:0, summary:"", history:[] });
+      const eventId = store.db.prepare(`INSERT INTO task_events(task_id,type,payload,created_at) VALUES(?,?,?,?)`).run("t-cascade","test","{}",new Date().toISOString()).lastInsertRowid;
+      store.deleteConversation("c-cascade");
+      expect(store.db.prepare(`SELECT COUNT(*) AS n FROM tasks WHERE id='t-cascade'`).get()).toMatchObject({n:0});
+      expect(store.db.prepare(`SELECT COUNT(*) AS n FROM task_events WHERE id=?`).get(eventId)).toMatchObject({n:0});
+      store.close();
+    });
+
+    it("cleans orphans during migration and backs up the database", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yuna-migration-"));
+      const dbPath = path.join(dir, "yuna.db");
+      const old = new Store(dir);
+      old.db.pragma("foreign_keys = OFF");
+      old.db.prepare(`INSERT INTO conversations(id,title,created_at,updated_at) VALUES(?,?,?,?)`).run("c-old","Old","x","x");
+      old.db.prepare(`INSERT INTO messages(id,conversation_id,role,text,created_at) VALUES(?,?,?,?,?)`).run("m-orphan","missing","user","bad","x");
+      old.close();
+      const migrated = new Store(dir);
+      expect(migrated.db.prepare(`SELECT COUNT(*) AS n FROM messages`).get()).toMatchObject({n:0});
+      expect(fs.readdirSync(dir).some((f) => f.startsWith("yuna.db.bak-"))).toBe(true);
+      migrated.close();
+    });
+
+    it("handles migration on an empty database", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yuna-migration-empty-"));
+      const store = new Store(dir);
+      expect(store.db.pragma("foreign_keys", { simple:true })).toBe(1);
+      store.close();
+    });
+  });
 });
 
 describe("continuous execution (E2E #1 analogue)", () => {

@@ -12,13 +12,14 @@ export class Store {
   db: Database.Database;
   constructor(dataDir: string) {
     fs.mkdirSync(dataDir, { recursive: true });
-    this.db = new Database(path.join(dataDir, "yuna.db"));
+    const dbPath = path.join(dataDir, "yuna.db");
+    if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, `${dbPath}.bak-${now().replace(/[:.]/g, "-")}`);
+    this.db = new Database(dbPath);
     this.db.pragma("journal_mode = WAL");
+    this.db.pragma("foreign_keys = OFF");
     this.db.exec(fs.readFileSync(path.resolve(here, "../../database/schema.sql"), "utf8"));
-    const close = () => this.close();
-    process.once("exit", close);
-    process.once("SIGINT", close);
-    process.once("SIGTERM", close);
+    this.migrateForeignKeys();
+    this.db.pragma("foreign_keys = ON");
   }
 
   close() {
@@ -26,6 +27,50 @@ export class Store {
       try { this.db.close(); } catch { /* ignore shutdown cleanup errors */ }
     }
   }
+
+    private migrateForeignKeys() {
+      const version = this.db.pragma("user_version", { simple: true }) as number;
+      const tx = this.db.transaction(() => {
+        this.db.prepare(`DELETE FROM messages WHERE NOT EXISTS (SELECT 1 FROM conversations c WHERE c.id=messages.conversation_id)`).run();
+        this.db.prepare(`DELETE FROM tasks WHERE conversation_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM conversations c WHERE c.id=tasks.conversation_id)`).run();
+        this.db.prepare(`DELETE FROM task_events WHERE NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id=task_events.task_id)`).run();
+        this.db.prepare(`DELETE FROM checkpoints WHERE NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id=checkpoints.task_id)`).run();
+        this.db.prepare(`DELETE FROM tool_calls WHERE NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id=tool_calls.task_id)`).run();
+        this.db.prepare(`DELETE FROM permissions WHERE task_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id=permissions.task_id)`).run();
+        this.db.prepare(`DELETE FROM artifacts WHERE created_by_task IS NOT NULL AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id=artifacts.created_by_task)`).run();
+        if (version >= 1) { this.db.pragma("user_version = 1"); return; }
+        this.rebuildTable("messages",
+          `CREATE TABLE messages (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, role TEXT NOT NULL, input_type TEXT, text TEXT NOT NULL, created_at TEXT NOT NULL, FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE)`,
+          "id,conversation_id,role,input_type,text,created_at");
+        this.rebuildTable("tasks",
+          `CREATE TABLE tasks (id TEXT PRIMARY KEY, conversation_id TEXT, goal TEXT NOT NULL, status TEXT NOT NULL, current_node TEXT, active_application TEXT, active_window TEXT, browser_session_id TEXT, state_json TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE)`,
+          "id,conversation_id,goal,status,current_node,active_application,active_window,browser_session_id,state_json,created_at,updated_at");
+        this.rebuildTable("task_events",
+          `CREATE TABLE task_events (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, type TEXT NOT NULL, payload TEXT, created_at TEXT NOT NULL, FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE)`,
+          "id,task_id,type,payload,created_at");
+        this.rebuildTable("checkpoints",
+          `CREATE TABLE checkpoints (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, step_number INTEGER NOT NULL, state_json TEXT NOT NULL, created_at TEXT NOT NULL, FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE)`,
+          "id,task_id,step_number,state_json,created_at");
+        this.rebuildTable("tool_calls",
+          `CREATE TABLE tool_calls (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, tool_name TEXT NOT NULL, arguments_json TEXT, result_json TEXT, success INTEGER NOT NULL DEFAULT 0, error TEXT, started_at TEXT, completed_at TEXT, FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE)`,
+          "id,task_id,tool_name,arguments_json,result_json,success,error,started_at,completed_at");
+        this.rebuildTable("permissions",
+          `CREATE TABLE permissions (id TEXT PRIMARY KEY, task_id TEXT, tool_name TEXT, arguments_json TEXT, decision TEXT, created_at TEXT NOT NULL, FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE)`,
+          "id,task_id,tool_name,arguments_json,decision,created_at");
+        this.rebuildTable("artifacts",
+          `CREATE TABLE artifacts (id TEXT PRIMARY KEY, type TEXT, path TEXT, created_by_task TEXT, created_at TEXT NOT NULL, FOREIGN KEY(created_by_task) REFERENCES tasks(id) ON DELETE CASCADE)`,
+          "id,type,path,created_by_task,created_at");
+        this.db.pragma("user_version = 1");
+      });
+      tx();
+    }
+
+    private rebuildTable(table: string, createSql: string, columns: string) {
+      const foreignKeys = this.db.prepare(`PRAGMA foreign_key_list(${table})`).all() as unknown[];
+      if (foreignKeys.length > 0) return;
+      const legacy = `__legacy_${table}`;
+      this.db.exec(`DROP TABLE IF EXISTS ${legacy}; ALTER TABLE ${table} RENAME TO ${legacy}; ${createSql}; INSERT OR IGNORE INTO ${table} (${columns}) SELECT ${columns} FROM ${legacy}; DROP TABLE ${legacy};`);
+    }
 
   // conversations / messages
   ensureConversation(id: string, title: string) {
@@ -45,14 +90,21 @@ export class Store {
   }
   conversations() { return this.db.prepare(`SELECT * FROM conversations ORDER BY updated_at DESC LIMIT 100`).all(); }
   deleteConversation(id: string) {
-    this.db.prepare(`DELETE FROM messages WHERE conversation_id=?`).run(id);
-    this.db.prepare(`DELETE FROM conversations WHERE id=?`).run(id);
+    const tx = this.db.transaction(() => {
+      this.db.prepare(`DELETE FROM tasks WHERE conversation_id=?`).run(id);
+      this.db.prepare(`DELETE FROM conversations WHERE id=?`).run(id);
+    });
+    tx();
   }
   renameConversation(id: string, title: string) { this.db.prepare(`UPDATE conversations SET title=? WHERE id=?`).run(title, id); }
 
   // tasks
   saveTask(t: TaskSession) {
     t.updated_at = now();
+    if (t.conversation_id) {
+      this.db.prepare(`INSERT INTO conversations(id,title,created_at,updated_at) VALUES(?,?,?,?)
+        ON CONFLICT(id) DO NOTHING`).run(t.conversation_id, t.goal.slice(0,80), t.created_at, t.updated_at);
+    }
     this.db.prepare(`INSERT INTO tasks(id,conversation_id,goal,status,current_node,active_application,active_window,browser_session_id,state_json,created_at,updated_at)
       VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,current_node=excluded.current_node,
       active_application=excluded.active_application,active_window=excluded.active_window,browser_session_id=excluded.browser_session_id,
