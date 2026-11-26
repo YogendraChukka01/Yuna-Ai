@@ -2,11 +2,12 @@ import { getState, setState, type Step } from "./store";
 import { tts } from "../voice";
 
 let ws: WebSocket | undefined;
+let authToken = "dev-token";
 let flashTimer: number | undefined;
 const isTauri = "__TAURI_INTERNALS__" in window;
 
 async function config(): Promise<{ port: number; token: string }> {
-  if (isTauri) { const { invoke } = await import("@tauri-apps/api/core"); return invoke("get_agent_config"); }
+  if (isTauri) { const { invoke } = await import("@tauri-apps/api/core"); const c = await invoke<{port:number;token:string}>("get_agent_config"); authToken=c.token; return c; }
   return { port: 47821, token: "dev-token" }; // browser dev mode only
 }
 export const send = (m: unknown) => ws?.readyState === WebSocket.OPEN && ws.send(JSON.stringify(m));
@@ -15,8 +16,8 @@ const flash = (kind: "success" | "error", text: string, ms = 4500) => { clearTim
 export async function connect() {
   const { port, token } = await config();
   const open = () => {
-    ws = new WebSocket(`ws://127.0.0.1:${port}/?token=${encodeURIComponent(token)}`);
-    ws.onopen = () => setState({ connected: true });
+    ws = new WebSocket(`ws://127.0.0.1:${port}/`);
+    ws.onopen = () => { ws?.send(JSON.stringify({ type:"auth", token: isTauri ? authToken : token })); };
     ws.onclose = () => { setState({ connected: false }); setTimeout(open, 1500); };
     ws.onmessage = (ev) => handle(JSON.parse(ev.data));
   };
@@ -26,6 +27,8 @@ export async function connect() {
 function handle(e: any) {
   const s = getState();
   switch (e.type) {
+    case "connected": setState({ connected:true }); break;
+    case "error": setState({ flash:{ kind:"error", text:e.message } }); break;
     case "settings": setState({ settings: e.settings }); break;
     case "history": setState({ history: { conversations: e.conversations, tasks: e.tasks }, ...(e.messages ? { messages: e.messages.map((m: any) => ({ id: m.id, role: m.role, text: m.text })) } : {}) }); break;
     case "recoverable": setState({ recoverable: e.tasks }); break;

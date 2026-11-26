@@ -115,6 +115,7 @@ export type AgentEvent =
   | { type: "history"; conversations: unknown[]; tasks: unknown[]; messages?: unknown[] }
   | { type: "settings"; settings: Settings }
   | { type: "memories"; memories: unknown[] }
+  | { type: "error"; code: string; message: string }
   | { type: "connected" };
 
 export interface LLM {

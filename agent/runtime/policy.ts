@@ -1,8 +1,37 @@
 import os from "node:os";
 import path from "node:path";
+import fs from "node:fs";
 import type { RiskLevel, Settings } from "./types";
 
 export type Verdict = { action: "allow" | "deny" | "confirm"; reason: string };
+
+const resolveCanonical = (p: string): string => {
+  const resolved = path.resolve(p);
+  let candidate = resolved;
+  const missing: string[] = [];
+  while (true) {
+    try { return path.join(fs.realpathSync(candidate), ...missing.reverse()); } catch {
+      const parent = path.dirname(candidate);
+      if (parent === candidate) return resolved;
+      missing.push(path.basename(candidate));
+      candidate = parent;
+    }
+  }
+};
+
+const isInside = (root: string, target: string): boolean => {
+  const windows = process.platform === "win32" || /^[a-z]:[\\/]/i.test(root) || /^[a-z]:[\\/]/i.test(target);
+  if (windows) {
+    const r = path.win32.resolve(root).replace(/\\/g, "/").toLowerCase();
+    const t = path.win32.resolve(target).replace(/\\/g, "/").toLowerCase();
+    const rel = path.win32.relative(r, t);
+    return rel === "" || (!rel.startsWith("..") && !path.win32.isAbsolute(rel));
+  }
+  const r = resolveCanonical(root);
+  const t = resolveCanonical(target);
+  const rel = path.relative(r, t);
+  return rel === "" || (!rel.startsWith(`..${path.sep}`) && rel !== ".." && !path.isAbsolute(rel));
+};
 
 const CATASTROPHIC = [
   /\bformat\s+[a-z]:/i, /\bdiskpart\b/i, /\bmkfs\b/i, /\bshutdown\b/i, /\brestart-computer\b/i,
@@ -31,7 +60,7 @@ export function evaluate(
     const paths = [args.path, args.source, args.destination].filter(Boolean).map((p: string) => path.resolve(String(p)));
     if (risk !== "low" && paths.some((p) => SYSTEM_PATHS.some((r) => r.test(p)))) return { action: "deny", reason: "Modifying system directories is not allowed." };
     const roots = [os.homedir(), ...s.allowedRoots].map((r) => path.resolve(r).toLowerCase());
-    if (risk !== "low" && paths.some((p) => !roots.some((r) => p.toLowerCase().startsWith(r))))
+    if (risk !== "low" && paths.some((p) => !roots.some((root) => isInside(root, p))))
       return { action: "confirm", reason: "Target is outside your allowed folders." };
   }
   if ((tool === "browser.click" || tool === "browser.press" || tool === "computer.click") && RISKY_UI.test(JSON.stringify(args ?? {})))

@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { evaluate } from "../agent/runtime/policy";
 import { LoopGuard } from "../agent/runtime/loop-guard";
 import { parseDecision } from "../agent/runtime/prompts";
@@ -12,6 +15,40 @@ describe("policy engine", () => {
   it("confirms destructive shell", () => expect(evaluate("shell.execute", { command: "rm -rf ./build" }, "medium", S).action).toBe("confirm"));
   it("confirms purchase-looking clicks", () => expect(evaluate("browser.click", { text: "Place order" }, "low", S).action).toBe("confirm"));
   it("honours confirmMedium setting", () => expect(evaluate("shell.execute", { command: "dir" }, "medium", { ...S, confirmMedium: true }).action).toBe("confirm"));
+});
+
+describe("file path policy", () => {
+  it("does not match sibling-prefix directories", () => {
+    const root = path.join(os.tmpdir(), "yuna-root");
+    expect(evaluate("file.write", { path: path.join(root + "-sibling", "a.txt") }, "medium", { confirmMedium: false, allowedRoots: [root] }).action).toBe("confirm");
+  });
+
+  it("rejects traversal outside an allowed root", () => {
+    const root = path.join(os.tmpdir(), "yuna-root");
+    expect(evaluate("file.write", { path: path.join(root, "..", "outside.txt") }, "medium", { confirmMedium: false, allowedRoots: [root] }).action).toBe("confirm");
+  });
+
+  it("accepts a child, root itself, and trailing slash", () => {
+    const root = path.join(os.tmpdir(), "yuna-root");
+    expect(evaluate("file.read", { path: path.join(root, "child.txt") }, "medium", { confirmMedium: false, allowedRoots: [root] }).action).not.toBe("deny");
+    expect(evaluate("file.read", { path: root + path.sep }, "medium", { confirmMedium: false, allowedRoots: [root] }).action).not.toBe("deny");
+  });
+
+  it("handles mixed separators and Windows drive casing", () => {
+    expect(evaluate("file.write", { path: "C:\\Users\\Test\\Docs/../a.txt" }, "medium", { confirmMedium: false, allowedRoots: ["c:\\users\\test"] }).action).not.toBe("deny");
+  });
+
+  it("rejects symlinks that escape an allowed root", () => {
+    if (process.platform === "win32") return;
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yuna-policy-"));
+    const root = path.join(dir, "root");
+    const outside = path.join(dir, "outside");
+    fs.mkdirSync(root); fs.mkdirSync(outside);
+    const link = path.join(root, "escape");
+    try { fs.symlinkSync(outside, link, "dir"); }
+    catch { return; }
+    expect(evaluate("file.write", { path: path.join(link, "secret.txt") }, "medium", { confirmMedium: false, allowedRoots: [root] }).action).toBe("confirm");
+  });
 });
 
 describe("loop guard", () => {

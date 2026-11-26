@@ -4,14 +4,15 @@ import type Database from "better-sqlite3";
 export type MemoryCategory = "PROFILE" | "PREFERENCE" | "PROJECT" | "WORKFLOW" | "FACT" | "EPISODIC_EVENT" | "TASK_RESULT";
 export interface Memory { id: string; category: MemoryCategory; content: string; confidence: number; created_at?: string; updated_at?: string }
 
-const SECRET = /(api[_-]?key|password|passwd|secret|token|bearer\s+[a-z0-9]|sk-[a-z0-9]{8,}|\b\d{13,19}\b)/i;
+const SECRET = /(api[_-]?key|password|passwd|secret|token|bearer\s+[a-z0-9]|sk-[a-z0-9_-]{8,}|-----BEGIN ([A-Z ]+ )?PRIVATE KEY-----|\b\d{13,19}\b)/i;
+export const containsSecret = (content: string): boolean => SECRET.test(content);
 
 /** Local-first memory (context layer 4). Saves only explicit/stable/useful facts; refuses anything that looks like a secret. */
 export class MemoryStore {
   constructor(private db: Database.Database) {}
 
   async save(m: Omit<Memory, "id" | "confidence"> & { confidence?: number }): Promise<Memory | null> {
-    if (SECRET.test(m.content)) return null;
+    if (containsSecret(m.content)) return null;
     const dup = this.db.prepare(`SELECT id FROM memories WHERE lower(content)=lower(?)`).get(m.content) as any;
     if (dup) return null;
     const rec: Memory = { id: randomUUID(), category: m.category, content: m.content.trim(), confidence: m.confidence ?? 0.8 };
@@ -31,6 +32,7 @@ export class MemoryStore {
   async update(id: string, patch: Partial<Memory>) {
     const cur = this.db.prepare(`SELECT * FROM memories WHERE id=?`).get(id) as Memory | undefined;
     if (!cur) return;
+    if (typeof patch.content === "string" && containsSecret(patch.content)) return;
     const n = { ...cur, ...patch };
     this.db.prepare(`UPDATE memories SET category=?,content=?,confidence=?,updated_at=? WHERE id=?`)
       .run(n.category, n.content, n.confidence, new Date().toISOString(), id);

@@ -3,7 +3,9 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { WebSocketServer, type WebSocket } from "ws";
+import { ClientMessage, MessageRateLimiter } from "./server-validation";
 import { OpenCodeLLM } from "./opencode/client";
 import { MemoryStore } from "./memory/store";
 import { AgentRuntime } from "./runtime/orchestrator";
@@ -12,7 +14,7 @@ import type { AgentEvent } from "./runtime/types";
 import { createToolkit } from "./tools";
 
 const PORT = Number(process.env.YUNA_PORT || 47821);
-const TOKEN = process.env.YUNA_TOKEN || "dev-token"; // Tauri injects a random token; "dev-token" is only for `npm run dev` in a browser.
+let TOKEN = process.env.YUNA_TOKEN || "dev-token"; // Tauri injects a random token; "dev-token" is only for `npm run dev` in a browser.
 const DATA_DIR = process.env.YUNA_DATA_DIR || path.join(os.homedir(), ".yuna");
 const ORIGINS = new Set(["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420", "http://127.0.0.1:1420"]);
 
@@ -21,12 +23,19 @@ store.markInterrupted();
 const memory = new MemoryStore(store.db);
 const { registry, browser } = createToolkit(DATA_DIR);
 const clients = new Set<WebSocket>();
+const authenticated = new WeakSet<WebSocket>();
+const rate = new WeakMap<WebSocket, MessageRateLimiter>();
+
+const constantTimeTokenEqual = (a: string, b: string) => {
+  const ab = Buffer.from(a); const bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+};
 
 const log = (level: string, ...a: unknown[]) => console.log(`[${new Date().toISOString()}] ${level}`, ...a.map((x) => String(x).replace(/sk-[A-Za-z0-9_-]{8,}/g, "sk-***")));
 const send = (ws: WebSocket, e: AgentEvent) => ws.readyState === ws.OPEN && ws.send(JSON.stringify(e));
 const emit = (e: AgentEvent) => {
   if ("taskId" in e && e.type !== "thinking") store.addEvent(e.taskId, e.type, e);
-  clients.forEach((c) => send(c, e));
+  clients.forEach((c) => { if (authenticated.has(c)) send(c, e); });
 };
 
 const runtime = new AgentRuntime({
@@ -38,22 +47,37 @@ const recoverable = () => ({ type: "recoverable", tasks: store.interrupted().map
 const history = (conv?: string): AgentEvent => ({ type: "history", conversations: store.conversations(), tasks: store.tasks(), messages: conv ? store.messages(conv) : undefined });
 
 const server = http.createServer((_, res) => { res.writeHead(404).end(); });
-const wss = new WebSocketServer({ server, verifyClient: ({ origin, req }, cb) => {
+const wss = new WebSocketServer({ server, maxPayload: 64 * 1024, verifyClient: ({ origin, req }, cb) => {
   const url = new URL(req.url ?? "/", "http://x");
-  if (url.searchParams.get("token") !== TOKEN) return cb(false, 401, "bad token");
+  if (url.pathname !== "/") return cb(false, 404, "bad path");
   if (origin && !ORIGINS.has(origin)) return cb(false, 403, "bad origin");
   cb(true);
 } });
 
 wss.on("connection", (ws) => {
   clients.add(ws);
-  send(ws, { type: "connected" });
-  send(ws, { type: "settings", settings: store.getSettings() });
-  send(ws, history());
-  send(ws, recoverable());
   ws.on("close", () => clients.delete(ws));
   ws.on("message", async (raw) => {
-    let m: any; try { m = JSON.parse(String(raw)); } catch { return; }
+    if (raw.toString().length > 64 * 1024) { send(ws, { type:"error", code:"PAYLOAD_TOO_LARGE", message:"Message exceeds the maximum size." }); return; }
+    const limiter = rate.get(ws) ?? new MessageRateLimiter();
+    rate.set(ws, limiter);
+    if (!limiter.allow()) { send(ws, { type:"error", code:"RATE_LIMITED", message:"Too many messages." }); return; }
+    let parsedJson: unknown;
+    try { parsedJson = JSON.parse(String(raw)); } catch { send(ws, { type:"error", code:"INVALID_JSON", message:"Malformed JSON." }); return; }
+    const validated = ClientMessage.safeParse(parsedJson);
+    if (!validated.success) { send(ws, { type:"error", code:"INVALID_MESSAGE", message:validated.error.issues[0]?.message ?? "Invalid message." }); return; }
+    const m = validated.data;
+    if (!authenticated.has(ws)) {
+    if (m.type !== "auth") { send(ws, { type:"error", code:"UNAUTHENTICATED", message:"Authenticate first." }); return; }
+    if (!constantTimeTokenEqual(m.token, TOKEN)) { send(ws, { type:"error", code:"UNAUTHORIZED", message:"Invalid authentication token." }); return; }
+    authenticated.add(ws);
+    send(ws, { type:"connected" });
+    send(ws, { type:"settings", settings:store.getSettings() });
+    send(ws, history());
+    send(ws, recoverable());
+    return;
+    }
+    if (m.type === "auth") { send(ws, { type:"error", code:"ALREADY_AUTHENTICATED", message:"Already authenticated." }); return; }
     try {
       switch (m.type) {
         case "task": {
@@ -76,12 +100,17 @@ wss.on("connection", (ws) => {
         case "memory_delete": await memory.delete(m.id); send(ws, { type: "memories", memories: await memory.list() }); break;
         case "memory_clear": await memory.clear(); send(ws, { type: "memories", memories: [] }); break;
       }
-    } catch (e) { log("ERROR", "message handler:", (e as Error).message); }
+    } catch (e) {
+      const message = (e as Error).message;
+      log("ERROR", "message handler:", message);
+      send(ws, { type:"error", code:"MESSAGE_FAILED", message:"The request could not be processed." });
+    }
   });
 });
 
 server.listen(PORT, "127.0.0.1", () => log("INFO", `Yuna agent listening on 127.0.0.1:${PORT} (data: ${DATA_DIR})`));
 const shutdown = async () => {
+  TOKEN = "";
   runtime.stopAll();
   await browser.close();
   store.close();
