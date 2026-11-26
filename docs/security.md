@@ -6,3 +6,6 @@
 - Untrusted content rule is in the system prompt; the policy layer does not depend on model compliance.
 - Logs redact `sk-…` patterns; memory refuses secret-looking content.
 - Yuna uses its own browser profile and never kills the user's normal Chrome.
+- WebSocket clients authenticate the first message using a random Tauri-provided token; the token is not included in the URL.
+- Message payloads are size-limited, Zod-validated, and rate-limited per connection.
+- Dynamic PowerShell parameters are base64-delimited and control characters are rejected.

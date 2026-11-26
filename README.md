@@ -6,6 +6,22 @@ Dynamic-Island-style autonomous desktop assistant (voice + chat). Tauri 2 · Rea
 Node 20+, Rust (MSVC toolchain), Microsoft C++ Build Tools, WebView2 runtime, Google Chrome (or run `npm run browsers` for bundled Chromium and set `YUNA_BROWSER_CHANNEL=chromium`).
 
 ## Setup
+
+### Native module setup
+On first setup or after switching Node versions, rebuild native dependencies:
+```
+npm rebuild better-sqlite3
+```
+
+### Agent and installer build
+```
+npm run build:agent
+npm run tauri:build
+```
+
+`build:agent` creates `dist-agent/server.js` and a platform Tauri sidecar executable in `src-tauri/binaries/`.
+The sidecar bundles the agent JavaScript; native `better-sqlite3` must be rebuilt for the target platform and Playwright Chromium must be installed or downloaded on first launch.
+Development still uses `npm run dev:agent`/`tsx` unless `YUNA_NO_SPAWN` is set to use an externally managed agent.
 ```
 npm install
 npm run browsers            # optional Chromium fallback
